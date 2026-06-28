@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>變色龍訓練 — 遊戲</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-game">
+<div class="game-root">
+
+  <div class="g-hud">
+    <span class="g-stat" id="g-level">第1關</span>
+    <span class="g-stat" id="g-timer">⏱ 45</span>
+  </div>
+
+  <div class="g-body">
+    <div class="g-canvas-wrap" id="canvas-wrap">
+      <canvas id="game-canvas"></canvas>
+      <div class="canvas-hint" id="canvas-hint"></div>
+    </div>
+
+    <div class="g-sidebar" id="g-sidebar">
+      <div class="g-sidebar-inner">
+        <div class="g-sidebar-label">🎯 AI 教練</div>
+        <div id="coach-msg" class="coach-msg"></div>
+        <button class="btn btn-side-toggle" id="btn-side-toggle">收合 ▲</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="g-controls">
+    <div class="g-rgb-line">
+      <span id="g-rgb">RGB(128, 128, 128)</span>
+      <span id="g-hex">#808080</span>
+    </div>
+    <div class="g-slider-row">
+      <span class="sl-lbl">H</span>
+      <input type="range" id="sl-h" min="0" max="360" value="0">
+      <span class="sl-val" id="sl-h-val">0°</span>
+    </div>
+    <div class="g-slider-row">
+      <span class="sl-lbl">S</span>
+      <input type="range" id="sl-s" min="0" max="1" step="0.01" value="0.5">
+      <span class="sl-val" id="sl-s-val">50%</span>
+    </div>
+    <div class="g-slider-row">
+      <span class="sl-lbl">V</span>
+      <input type="range" id="sl-v" min="0" max="1" step="0.01" value="0.5">
+      <span class="sl-val" id="sl-v-val">50%</span>
+    </div>
+    <div class="g-controls-row2">
+      <button class="btn btn-confirm" id="btn-confirm">✓ 確認</button>
+      <a href="training.html" class="btn btn-link">← 訓練</a>
+    </div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="panel-overlay">
+  <div class="overlay-box">
+    <h2 id="overlay-title"></h2>
+    <div id="overlay-body"></div>
+    <button class="btn btn-primary" id="overlay-btn"></button>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/training-data.js"></script>
+<script src="js/model.js"></script>
+<script src="js/coach.js"></script>
+<script src="js/game.js"></script>
+<script src="js/renderer.js"></script>
+<script>
+(() => {
+  let model, coach, game, renderer;
+  let animId = null, lastT = 0;
+  let isRoundActive = false;
+
+  const $ = id => document.getElementById(id);
+  const slH = $('sl-h'), slS = $('sl-s'), slV = $('sl-v');
+
+  async function init() {
+    model = new ColorNet();
+
+    // Check if model data exists in localStorage (doesn't need tf.js)
+    if (model.hasSavedData()) {
+      // Try to reconstruct the model (needs tf.js)
+      const modelReady = await model.loadModelFromStorage();
+      if (!modelReady) {
+        console.warn('TF.js unavailable or model load failed — playing without AI model');
+        $('coach-msg').innerHTML =
+          '<strong style="color:#888">⚠️ AI 模型未載入</strong><br>' +
+          '<span style="color:#aaa;font-size:11px">遊戲仍可進行，但教練不會有模型預測</span>';
+      }
+    } else {
+      $('panel-overlay').classList.add('show');
+      $('overlay-title').textContent = '⚠️ 尚未訓練模型';
+      $('overlay-body').innerHTML = '<p style="color:#888;margin:8px 0">請先到訓練頁面訓練 AI</p>';
+      $('overlay-btn').textContent = '前往訓練';
+      $('overlay-btn').onclick = () => location.href = 'training.html';
+      return;
+    }
+
+    coach = new AICoach(model);
+    game = new Game();
+    renderer = new Renderer($('game-canvas'));
+
+    $('btn-confirm').addEventListener('click', onConfirmClick);
+    slH.addEventListener('input', onSliderChange);
+    slS.addEventListener('input', onSliderChange);
+    slV.addEventListener('input', onSliderChange);
+    $('btn-side-toggle').addEventListener('click', toggleSidebar);
+    $('overlay-btn').addEventListener('click', onOverlayBtn);
+    $('canvas-wrap').addEventListener('click', onCanvasClick);
+
+    updateSliderSpectrum(0, 0.5, 0.5);
+    startNewGame();
+  }
+
+  /* ── Game Lifecycle ── */
+
+  function startNewGame() {
+    game.startNewGame();
+    syncSlidersFromGame();
+    isRoundActive = true;
+    $('panel-overlay').classList.remove('show');
+    showHint('');
+    $('coach-msg').innerHTML = '';
+    lastT = performance.now();
+    if (animId) cancelAnimationFrame(animId);
+    runLoop();
+  }
+
+  function startNextRound() {
+    if (game.isGameOver() || game.isVictory()) return;
+    game.nextRound();
+    syncSlidersFromGame();
+    isRoundActive = true;
+    $('panel-overlay').classList.remove('show');
+    showHint('');
+    $('coach-msg').innerHTML = '';
+    lastT = performance.now();
+  }
+
+  /* ── Game Loop ── */
+
+  function runLoop() {
+    const loop = (ts) => {
+      const dt = Math.min((ts - lastT) / 1000, 0.05);
+      lastT = ts;
+
+      if (isRoundActive) {
+        const r = game.update(dt);
+        drawScene();
+        updateHUD();
+
+        if (r.done) {
+          isRoundActive = false;
+          handleRoundEnd();
+        }
+      }
+
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+  }
+
+  function handleRoundEnd() {
+    const res = game.result;
+    if (!res) return;
+    showCoachResult(res);
+    if (res.pass) {
+      renderer.drawResultOverlay(res);
+      if (game.isVictory()) {
+        renderer.drawVictoryOverlay();
+        showOverlay('🎉 全部通關！', '你通過了所有 5 個關卡！', '返回訓練');
+        $('overlay-btn').onclick = () => location.href = 'training.html';
+      } else {
+        showHint(`✅ 第${res.level + 1}關通過！ 點擊繼續 →`);
+      }
+    } else {
+      renderer.drawResultOverlay(res);
+      showOverlay('✗ 偽裝失敗', `第${res.level + 1}關 誤差 ${(res.diff * 100).toFixed(1)}% 超過容許值 ${(res.tol * 100).toFixed(1)}%`, '返回訓練');
+      $('overlay-btn').onclick = () => location.href = 'training.html';
+    }
+  }
+
+  /* ── Coach ── */
+
+  function showCoachResult(res) {
+    const msg = $('coach-msg');
+    if (res.pass) {
+      msg.innerHTML = `<strong style="color:#2e7d32">✓ 通過！</strong><br>
+        <span style="color:#888;font-size:11px">誤差 ${(res.diff * 100).toFixed(1)}% 在容許範圍內</span>`;
+    } else {
+      const userRGB = hsv2rgb(game.userH, game.userS, game.userV);
+      const targetRGB = hsv2rgb(game.targetH, game.targetS, game.targetV);
+      const res2 = coach.analyze(
+        { h: game.targetH, s: game.targetS, v: game.targetV },
+        { h: game.userH, s: game.userS, v: game.userV }
+      );
+      msg.innerHTML = `<strong style="color:#c62828">✗ 色差過大</strong><br>
+        <span style="color:#888;font-size:11px">誤差 ${(res.diff * 100).toFixed(1)}%  /  容許 ${(res.tol * 100).toFixed(1)}%</span>
+        <div style="margin-top:8px;font-size:13px">${res2.advice.map(a => `<div>• ${a}</div>`).join('')}</div>`;
+    }
+  }
+
+  /* ── Input Handlers ── */
+
+  function onSliderChange() {
+    const h = parseFloat(slH.value), s = parseFloat(slS.value), v = parseFloat(slV.value);
+    game.userH = h; game.userS = s; game.userV = v;
+    updateSliderSpectrum(h, s, v);
+    updateLabels();
+    /* no real-time coach update — only on confirm/time-up */
+  }
+
+  function onConfirmClick() {
+    if (isRoundActive) {
+      game.confirmCheck();
+      isRoundActive = false;
+      handleRoundEnd();
+    } else {
+      onCanvasClick();
+    }
+  }
+
+  function onCanvasClick() {
+    if (isRoundActive) return;
+    if (game.isGameOver() || game.isVictory()) return;
+    startNextRound();
+  }
+
+  function onOverlayBtn() {
+    /* handled per-case in handleRoundEnd */
+  }
+
+  /* ── UI Updates ── */
+
+  function drawScene() {
+    renderer.drawScene(
+      game.level,
+      { h: game.userH, s: game.userS, v: game.userV },
+      { h: game.targetH, s: game.targetS, v: game.targetV },
+      game.timeLeft
+    );
+  }
+
+  function updateHUD() {
+    $('g-level').textContent = game.getLevelConfig().name;
+    const tl = Math.ceil(game.timeLeft);
+    $('g-timer').textContent = `⏱ ${Math.max(0, tl)}`;
+    $('g-timer').style.color = tl > 0 && tl <= 10 ? '#dc2626' : '#666';
+    $('btn-confirm').textContent = isRoundActive ? '✓ 確認' : '▶ 繼續';
+  }
+
+  function showHint(text) {
+    $('canvas-hint').textContent = text;
+    $('canvas-hint').style.display = text ? 'block' : 'none';
+  }
+
+  function showOverlay(title, body, btnText) {
+    $('overlay-title').textContent = title;
+    $('overlay-body').innerHTML = body;
+    $('overlay-btn').textContent = btnText;
+    $('panel-overlay').classList.add('show');
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+  }
+
+  function syncSlidersFromGame() {
+    slH.value = game.userH;
+    slS.value = game.userS;
+    slV.value = game.userV;
+    updateSliderSpectrum(game.userH, game.userS, game.userV);
+    updateLabels();
+  }
+
+  function updateLabels() {
+    const h = parseFloat(slH.value), s = parseFloat(slS.value), v = parseFloat(slV.value);
+    $('sl-h-val').textContent = `${Math.round(h)}°`;
+    $('sl-s-val').textContent = `${Math.round(s * 100)}%`;
+    $('sl-v-val').textContent = `${Math.round(v * 100)}%`;
+    const [r, g, b] = hsv2rgb(h, s, v);
+    $('g-rgb').textContent = `RGB(${Math.round(r*255)}, ${Math.round(g*255)}, ${Math.round(b*255)})`;
+    $('g-hex').textContent = rgb2hex(r, g, b);
+  }
+
+  function updateSliderSpectrum(h, s, v) {
+    slH.style.background = 'linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';
+    slS.style.background = `linear-gradient(to right,${hsv2hex(h,0,v)},${hsv2hex(h,1,v)})`;
+    slV.style.background = `linear-gradient(to right,${hsv2hex(h,s,0)},${hsv2hex(h,s,1)})`;
+  }
+
+  function toggleSidebar() {
+    const sb = $('g-sidebar'), btn = $('btn-side-toggle');
+    sb.classList.toggle('collapsed');
+    btn.textContent = sb.classList.contains('collapsed') ? '展開 ▼' : '收合 ▲';
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>

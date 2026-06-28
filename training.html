@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>躲貓貓訓練 — AI 訓練</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-training">
+<div class="training-wrap">
+  <h1 class="train-title">🦎 躲貓貓訓練 · 神經網路實驗室</h1>
+  <p class="train-sub">訓練 AI 色彩感知，完成後前往遊戲</p>
+
+  <div class="train-grid">
+    <div class="tcard tcard-wide">
+      <div class="train-bar">
+        <button class="btn btn-primary" id="btn-start-training">開始訓練</button>
+        <span id="train-status">準備就緒</span>
+        <div class="train-progress">
+          <div class="pbar"><div class="pfill" id="train-progress"></div></div>
+          <div class="ptext" id="train-progress-text"></div>
+        </div>
+        <a href="game.html" class="btn btn-primary" id="train-to-game" style="display:none">🎮 前往遊戲</a>
+      </div>
+    </div>
+
+    <div class="tcard">
+      <div class="tcard-h">訓練資料樣本</div>
+      <div class="data-grid" id="data-grid"></div>
+    </div>
+
+    <div class="tcard">
+      <div class="tcard-h">模型架構</div>
+      <table class="arch-table">
+        <thead><tr><th>層</th><th>維度</th><th>激活</th><th>參數</th></tr></thead>
+        <tbody id="arch-body"></tbody>
+      </table>
+      <div class="param-info">總參數: <span id="total-params">-</span></div>
+      <div class="tcard-h" style="margin-top:12px">關於反向傳遞</div>
+      <p class="bp-desc">
+        訓練使用 Adam 優化器 (lr=0.001)，透過 MSE Loss 計算預測 RGB 與目標 RGB 的誤差，
+        誤差經由鏈鎖律反向傳遞回各層，更新權重使 Loss 最小化。
+        每批次 128 筆，共 40 個 Epoch，使用 15% 資料作為驗證集。
+      </p>
+    </div>
+
+    <div class="tcard tcard-wide">
+      <div class="tcard-h">訓練曲線</div>
+      <canvas id="training-chart"></canvas>
+    </div>
+
+    <div class="tcard">
+      <div class="tcard-h">前向傳遞示範</div>
+      <p class="demo-hint">選取隨機顏色，觀察特徵在網路中流動</p>
+      <button class="btn" id="btn-forward-demo">執行前向傳遞</button>
+      <div id="forward-result" class="fw-wrap"></div>
+    </div>
+
+    <div class="tcard">
+      <div class="tcard-h">預測測試</div>
+      <p class="demo-hint">比對模型預測 vs 目標顏色</p>
+      <button class="btn" id="btn-test-pred">測試 8 色</button>
+      <div id="test-result" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/training-data.js"></script>
+<script src="js/model.js"></script>
+<script src="js/renderer.js"></script>
+<script>
+let gen, model, renderer;
+
+function init() {
+  gen = new TrainingDataGenerator();
+  model = new ColorNet();
+  renderer = new Renderer('training-chart');
+  renderer.resize();
+
+  document.getElementById('btn-start-training').addEventListener('click', startTraining);
+  document.getElementById('btn-forward-demo').addEventListener('click', runForward);
+  document.getElementById('btn-test-pred').addEventListener('click', runTest);
+
+  setStatus('點擊「開始訓練」');
+  renderArch();
+  renderData(gen.generateUniform(200));
+}
+
+function setStatus(t) { document.getElementById('train-status').textContent = t; }
+function setProgress(pct, text) {
+  document.getElementById('train-progress').style.width = pct + '%';
+  document.getElementById('train-progress-text').textContent = text || Math.round(pct) + '%';
+}
+
+function renderData(colors) {
+  const g = document.getElementById('data-grid');
+  g.innerHTML = '';
+  for (const [r, g2, b] of colors.slice(0, 400)) {
+    const d = document.createElement('div');
+    d.className = 'data-swatch';
+    d.style.background = rgb2hex(r, g2, b);
+    g.appendChild(d);
+  }
+}
+
+function renderArch() {
+  const arch = model.getArchitecture();
+  const tbody = document.getElementById('arch-body');
+  tbody.innerHTML = '';
+  for (const l of arch) {
+    tbody.innerHTML += `<tr><td>${l.name}</td><td>${l.dim}</td><td>${l.act}</td><td>${l.params}</td></tr>`;
+  }
+  document.getElementById('total-params').textContent = model.getTotalParams().toLocaleString();
+}
+
+async function startTraining() {
+  const btn = document.getElementById('btn-start-training');
+  btn.disabled = true; btn.textContent = '訓練中...';
+  document.getElementById('train-to-game').style.display = 'none';
+
+  setStatus('產生訓練資料...'); setProgress(5); await sleep(16);
+  const dataset = gen.buildDataset(CONFIG.training.sampleCount);
+  renderData(dataset.colors); setProgress(10, '資料就緒');
+
+  setStatus('建構神經網路...');
+  model.build(); renderArch(); await sleep(16);
+
+  setStatus('開始訓練...');
+  await model.train(dataset.inputs, dataset.outputs, (epoch, total, logs) => {
+    const pct = 10 + (epoch / total) * 80;
+    setProgress(pct, `Epoch ${epoch}/${total}`);
+      const acc = Math.max(0, (1 - logs.mae / 0.375) * 100);
+      const valAcc = logs.val_mae != null ? Math.max(0, (1 - logs.val_mae / 0.375) * 100) : 0;
+      setStatus(`正確率 ${acc.toFixed(1)}% (驗證 ${valAcc.toFixed(1)}%) | Loss ${logs.loss.toFixed(4)}`);
+    renderer.drawTrainingChart(model.history, 'training-chart');
+  });
+
+  setProgress(100, '完成');
+  setStatus('✅ 訓練完成！儲存模型中...');
+  await model.saveToStorage();
+  setStatus('✅ 模型已儲存！');
+  renderer.drawTrainingChart(model.history, 'training-chart');
+
+  btn.textContent = '重新訓練'; btn.disabled = false;
+  document.getElementById('train-to-game').style.display = 'inline-block';
+  renderArch();
+  runTest();
+}
+
+function runForward() {
+  const div = document.getElementById('forward-result');
+  if (!model.isTrained) { div.innerHTML = '<span style="color:#999">請先訓練</span>'; return; }
+  const h = Math.random() * 360, s = 0.3 + Math.random() * 0.7, v = 0.3 + Math.random() * 0.7;
+  const rgb = hsv2rgb(h, s, v);
+  const feat = new TrainingDataGenerator().extractFeatures(rgb);
+  const acts = model.forwardPass(feat);
+  if (!acts) return;
+  const pred = model.predict(feat);
+  let html = '<div class="fw-stack">';
+  for (const a of acts) {
+    html += `<div class="fw-node"><strong>${a.name}</strong> (${a.shape}D)<br><code>[${a.values.join(', ')}]</code></div>`;
+    html += '<div class="fw-arr">↓</div>';
+  }
+  html += `<div class="fw-node" style="border-color:#22c55e">
+    <strong>輸出</strong> 目標 ${rgb2hex(rgb[0],rgb[1],rgb[2])} → 預測 ${rgb2hex(pred[0],pred[1],pred[2])}
+    <br>誤差 ${deltaE(rgb, pred).toFixed(4)}
+  </div></div>`;
+  div.innerHTML = html;
+}
+
+function runTest() {
+  const div = document.getElementById('test-result');
+  if (!model.isTrained) { div.innerHTML = '<span style="color:#999">請先訓練</span>'; return; }
+  const gen2 = new TrainingDataGenerator();
+  const colors = gen2.generateUniform(8);
+  let html = '<table class="pred-table"><tr><th>目標</th><th>RGB</th><th>預測</th><th>誤差</th></tr>';
+  for (const rgb of colors) {
+    const feat = gen2.extractFeatures(rgb);
+    const pred = model.predict(feat);
+    const err = pred ? deltaE(rgb, pred) : 1;
+    const hexT = rgb2hex(rgb[0], rgb[1], rgb[2]);
+    const hexP = pred ? rgb2hex(pred[0], pred[1], pred[2]) : '#ccc';
+    html += `<tr>
+      <td><span class="swatch" style="background:${hexT}"></span></td>
+      <td>${rgb.map(v=>(v*255).toFixed(0)).join(', ')}</td>
+      <td><span class="swatch" style="background:${hexP}"></span></td>
+      <td>${err.toFixed(4)}</td>
+    </tr>`;
+  }
+  html += '</table>';
+  div.innerHTML = html;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

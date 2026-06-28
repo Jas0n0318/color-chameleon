@@ -1,0 +1,146 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333; background: #f5f5f5; }
+a { color: inherit; text-decoration: none; }
+
+/* ===== LANDING (index.html) ===== */
+.landing { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; text-align: center; }
+.landing h1 { font-size: 32px; margin-bottom: 6px; }
+.landing-sub { color: #888; font-size: 14px; margin-bottom: 32px; }
+.landing-cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.landing-card { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 200px; padding: 28px 20px; background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; transition: box-shadow 0.2s; cursor: pointer; }
+.landing-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.lc-icon { font-size: 36px; }
+.lc-title { font-weight: 600; font-size: 15px; }
+.lc-desc { font-size: 12px; color: #888; line-height: 1.5; }
+.landing-footer { margin-top: 24px; font-size: 12px; color: #aaa; }
+
+/* ===== TRAINING PAGE ===== */
+.page-training { background: #f8f8f8; }
+.training-wrap { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
+.train-title { font-size: 22px; font-weight: 700; }
+.train-sub { font-size: 13px; color: #888; margin-bottom: 20px; }
+.train-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.tcard { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 16px; }
+.tcard-wide { grid-column: 1 / -1; }
+.tcard-h { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
+.train-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.train-progress { flex: 1; min-width: 100px; }
+.pbar { height: 4px; background: #e5e5e5; border-radius: 2px; overflow: hidden; }
+.pfill { height: 100%; width: 0%; background: #222; border-radius: 2px; transition: width 0.3s; }
+.ptext { font-size: 11px; color: #888; margin-top: 2px; }
+#train-status { font-size: 12px; color: #666; white-space: nowrap; }
+.data-grid { display: flex; flex-wrap: wrap; gap: 1px; max-height: 170px; overflow-y: auto; }
+.data-swatch { width: 13px; height: 13px; border-radius: 1px; flex-shrink: 0; }
+.arch-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.arch-table th { text-align: left; padding: 5px 8px; color: #888; font-weight: 500; border-bottom: 1px solid #eee; font-size: 11px; }
+.arch-table td { padding: 4px 8px; border-bottom: 1px solid #f5f5f5; }
+.arch-table tr:last-child td { border-bottom: none; }
+.param-info { font-size: 11px; color: #888; margin-top: 6px; }
+.bp-desc { font-size: 11px; color: #666; line-height: 1.7; }
+#training-chart { width: 100%; height: 170px; border-radius: 4px; display: block; }
+.demo-hint { font-size: 11px; color: #888; margin-bottom: 8px; }
+.fw-wrap { margin-top: 10px; }
+.fw-stack { display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
+.fw-node { background: #f8f8f8; border: 1px solid #e5e5e5; border-radius: 4px; padding: 6px 10px; font-size: 11px; word-break: break-all; }
+.fw-node strong { color: #555; }
+.fw-node code { font-size: 10px; color: #888; }
+.fw-arr { text-align: center; font-size: 12px; color: #aaa; padding: 1px 0; }
+.pred-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.pred-table th { text-align: left; padding: 4px 6px; color: #888; font-weight: 500; border-bottom: 1px solid #eee; }
+.pred-table td { padding: 4px 6px; border-bottom: 1px solid #f5f5f5; }
+.swatch { display: inline-block; width: 20px; height: 20px; border-radius: 3px; vertical-align: middle; }
+
+/* ===== GAME PAGE ===== */
+.page-game { background: #fff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+.game-root { display: flex; flex-direction: column; height: 100vh; }
+.g-hud { display: flex; align-items: center; gap: 16px; padding: 8px 16px; background: #fff; border-bottom: 1px solid #eee; font-size: 13px; flex-shrink: 0; }
+.g-stat { color: #666; }
+#g-timer { color: #666; }
+
+.g-body { display: flex; flex: 1; min-height: 0; }
+.g-canvas-wrap { flex: 1; position: relative; overflow: hidden; cursor: pointer; }
+#game-canvas { width: 100%; height: 100%; display: block; }
+
+.canvas-hint {
+  display: none;
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.g-sidebar { width: 260px; flex-shrink: 0; border-left: 1px solid #eee; background: #fafafa; display: flex; flex-direction: column; overflow: hidden; transition: width 0.25s; }
+.g-sidebar.collapsed { width: 40px; }
+.g-sidebar-inner { padding: 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; }
+.g-sidebar.collapsed .g-sidebar-inner > *:not(.btn-side-toggle) { display: none; }
+.g-sidebar-label { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 8px; }
+.coach-msg { font-size: 12px; line-height: 1.7; }
+.btn-side-toggle { margin-top: auto; padding: 4px 0; border: none; background: none; color: #888; font-size: 11px; cursor: pointer; text-align: center; }
+.btn-side-toggle:hover { color: #333; }
+
+.g-controls { padding: 8px 16px 14px; background: #fff; border-top: 1px solid #eee; flex-shrink: 0; }
+.g-rgb-line { display: flex; gap: 12px; align-items: center; font-size: 11px; color: #888; margin-bottom: 6px; padding-left: 30px; }
+.g-rgb-line span { font-family: monospace; }
+
+.g-slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sl-lbl { width: 18px; font-size: 12px; font-weight: 600; color: #555; text-align: center; }
+.g-slider-row input[type="range"] { flex: 1; height: 6px; -webkit-appearance: none; appearance: none; border-radius: 3px; outline: none; background: #e0e0e0; }
+.g-slider-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #666; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+.g-slider-row input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #666; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+.sl-val { width: 44px; font-size: 11px; color: #888; text-align: right; font-variant-numeric: tabular-nums; }
+
+.g-controls-row2 { display: flex; gap: 8px; align-items: center; margin-top: 6px; padding-left: 26px; }
+.btn-confirm { padding: 6px 18px; border: 1px solid #ccc; border-radius: 5px; background: #f0f0f0; font-size: 12px; cursor: pointer; color: #333; font-family: inherit; }
+.btn-confirm:hover { background: #e0e0e0; }
+.btn-link { padding: 6px 12px; font-size: 11px; color: #888; }
+.btn-link:hover { color: #333; }
+
+/* ===== OVERLAY (gameover) ===== */
+.panel-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(255,255,255,0.92); justify-content: center; align-items: center; }
+.panel-overlay.show { display: flex; }
+.overlay-box { text-align: center; max-width: 320px; padding: 24px; }
+.overlay-box h2 { font-size: 26px; margin-bottom: 10px; }
+#overlay-body { font-size: 14px; color: #555; line-height: 1.8; margin-bottom: 16px; }
+
+/* ===== SHARED ===== */
+.btn { padding: 8px 20px; border: 1px solid #ccc; border-radius: 6px; background: #fff; font-size: 13px; font-weight: 500; cursor: pointer; color: #333; font-family: inherit; transition: background 0.15s; }
+.btn:hover { background: #f0f0f0; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn-primary { background: #222; color: #fff; border-color: #222; }
+.btn-primary:hover { background: #444; }
+
+/* ===== RWD ===== */
+@media (max-width: 768px) {
+  .landing-cards { flex-direction: column; align-items: center; }
+  .landing-card { width: 260px; }
+  .training-wrap { padding: 16px 12px 40px; }
+  .train-grid { grid-template-columns: 1fr; }
+  .train-bar { flex-direction: column; align-items: stretch; }
+  .train-progress { min-width: 0; }
+
+  .g-hud { gap: 10px; padding: 6px 10px; font-size: 12px; flex-wrap: wrap; }
+  .g-body { flex-direction: column; }
+  .g-sidebar { width: auto; max-height: 30%; border-left: none; border-top: 1px solid #eee; }
+  .g-sidebar.collapsed { max-height: 36px; }
+  .g-sidebar-inner { padding: 8px 10px; }
+  .g-controls { padding: 6px 10px 12px; }
+  .g-slider-row input[type="range"] { height: 8px; }
+  .g-slider-row input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+  .g-rgb-line { padding-left: 0; font-size: 10px; }
+  .g-controls-row2 { padding-left: 0; }
+}
+
+@media (max-width: 480px) {
+  .g-hud { font-size: 11px; gap: 6px; }
+  .g-sidebar { max-height: 25%; }
+  .coach-msg { font-size: 11px; }
+}
